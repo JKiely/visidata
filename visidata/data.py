@@ -3,6 +3,7 @@ import stat
 import pwd
 import grp
 import subprocess
+import contextlib
 
 from .vdtui import *
 
@@ -446,7 +447,10 @@ def _getTsvHeaders(fp, nlines):
     headers = []
     i = 0
     while i < nlines:
-        L = next(fp)
+        try:
+            L = next(fp)
+        except StopIteration:  # not enough lines for headers
+            return headers
         L = L.rstrip('\n')
         if L:
             headers.append(L.split(options.delimiter))
@@ -527,3 +531,31 @@ def save_tsv(p, vs):
 
     status('%s save finished' % p)
 
+
+def append_tsv_row(vs, row):
+    if not vs.source.exists():
+        with contextlib.suppress(FileExistsError):
+            os.makedirs(vs.source.parent.resolve())
+
+        syncfunc(save_tsv)(vs.source, vs)
+
+    # replace tabs and newlines
+    delim = '\t'
+    replch = options.tsv_safe_char
+    trdict = {ord(delim): replch, 10: replch, 13: replch}
+
+    with vs.source.open_text(mode='a') as fp:
+        fp.write(delim.join(col.getDisplayValue(row) for col in vs.visibleCols) + '\n')
+
+
+def loadInternalSheet(klass, p, **kwargs):
+    vs = klass(p.name, source=p, **kwargs)
+    try:
+        if not p.exists():
+            with contextlib.suppress(FileExistsError):
+                os.makedirs(p.parent.resolve())
+            syncfunc(save_tsv)(p, vs)  # save headers
+        syncfunc(vs.reload)()
+    except Exception as e:
+        exceptionCaught(e)
+    return vs

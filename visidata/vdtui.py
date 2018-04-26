@@ -558,11 +558,25 @@ def moveRegex(sheet, *args, **kwargs):
 def sync(expectedThreads=0):
     vd().sync(expectedThreads)
 
-def async(func):
+def syncfunc(f):
+    "Return sync version of this function."
+    return getattr(f, 'sync', f)
+
+class async(object):
     'Function decorator, to make calls to `func()` spawn a separate thread if available.'
-    def _execAsync(*args, **kwargs):
-        return vd().execAsync(func, *args, **kwargs)
-    return _execAsync
+    def __init__(self, func):
+        self.func = func
+
+    def __get__(self, obj, type=None):
+        if obj is None:
+            return self.func
+        f = functools.partial(self, obj)
+        f.sync = functools.partial(self.func, obj)
+        return f
+
+    def __call__(self, *args, **kwargs):
+        return vd().execAsync(self.func, *args, **kwargs)
+
 
 class Progress:
     def __init__(self, iterable=None, total=None, sheet=None):
@@ -616,6 +630,7 @@ class VisiData:
         self.scr = None  # curses scr
         self.hooks = collections.defaultdict(list)  # [hookname] -> list(hooks)
         self.threads = [] # all long-running threads, including main and finished
+        self.macros = {}  # [keystrokes] -> CommandLog
         self.addThread(threading.current_thread(), endTime=0)
         self.addHook('rstatus', lambda sheet,self=self: (self.keystrokes, 'white'))
         self.addHook('rstatus', self.rightStatus)
@@ -1084,7 +1099,7 @@ StubCommand('view-go-far-right'),
                 sheetcmds[cmd.name] = cmd
                 if cmd.longname:
                     sheetcmds[cmd.longname] = cmd
-        self._commands = collections.ChainMap(sheetcmds, baseCommands)
+        self._commands = collections.ChainMap(vd().macros, sheetcmds, baseCommands)
 
         # for progress bar
         self.progresses = []  # list of Progress objects
@@ -1118,6 +1133,8 @@ StubCommand('view-go-far-right'),
         cmd = None
         while k in self._commands:
             cmd = self._commands.get(k, default)
+            if isinstance(cmd, CommandLog):
+                return cmd
             k = cmd.execstr  # see if execstr is actually just an alias for another keystroke
         return cmd
 
@@ -1129,6 +1146,10 @@ StubCommand('view-go-far-right'),
         if not cmd:
             status('no command "%s"' % keystrokes)
             return True
+
+        if isinstance(cmd, CommandLog):
+            cmd.replay()
+            return False
 
         escaped = False
         err = ''

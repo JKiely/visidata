@@ -1,12 +1,24 @@
 # VisiData version history
 
+- macro system
+   - `gD` goes to directory of `~/.visidata/`, which contains saved commandlogs and macros
+   - [cmdlog] `z^S` with 
+- on cmdlog: z^S "keystroke" means save selected rows to macro for keystroke, saving to ~/.visidata/macro/command-longname.vd
+  , can easily go to a cmdlog, ENTER to open the file
+   
+   also confirm('append to ~/.visidata/macros.vd ? ')
+   - macros.vd is (keystroke, ~/.visidata/macro/command-longname.vd)
+- auto-append cmdlog to .visidata/history/%Y%M%D-%H%M.vd
+
 - [DirSheet] edits make deferred changes to any field
+   - add dir and filetype
    - note: only 256 changes maintained per column (same as column cache size)
    - `^S` saves all deferred changes
    - `z^S` saves changes for the current file only
    - `^R` clears all changes (reload)
    - `z^R` clears changes on the current file only
    - `d`/`gd` marks the current/selected file for deletion
+- `g^S` for multisave to single file (for formats that support it) or directory
 - `^A` to specify a command longname to execute
 - `g^R` on SheetsSheet to reload all [selected] sheets
 - `options.error_is_null` to treat errors as nulls when applicable
